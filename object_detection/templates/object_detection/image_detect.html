@@ -1,0 +1,52 @@
+{% extends 'object_detection/base.html' %}
+{% load detection_tag %}
+{% block content %}
+
+{% if request.user.is_authenticated %}
+    <div class="container">
+        <h2 class="my-4">Dashboard</h2>
+        <a href="{% url 'object_detection:add_image_feed' %}" class="btn btn-primary mb-3">Add Image</a>
+
+        {% for feed in image_feeds %}
+            <div class="card mb-4">
+                <div class="card-header">
+                    <h5 class="card-title">Изображение: {{ feed.image }}</h5>
+                </div>
+                <div class="card-body">
+                    <p class="thumb">
+                        <a href="{{ feed.image.url }}" target="_blank">
+                            <img class="img-article-left thumb" src="{{ feed.image.url }}" alt="Original Image">
+                        </a>
+                    </p>
+                    {% if chart %}
+                        <img src="data:image/png;base64,{{ chart|safe }}" alt="Chart">
+                    {% endif %}
+                    <table class="table">
+                        <tr>
+                            {% for obj in feed.detected_objects.all %}
+                                {% if obj.processed_image %}
+                                    <td>
+                                        <a href="{{ obj.processed_image.url }}" target="_blank">
+                                            <img class="img-article-left thumb" src="{{ obj.processed_image.url }}" alt="Processed Image">
+                                        </a>
+                                        <p class="table_text">{{ obj.object_type }} - {{ obj.confidence|floatformat:2 }}</p>
+                                        <p class="table_text">Метод: {{ obj.method_detected }}</p>
+                                    </td>
+                                {% endif %}
+                            {% endfor %}
+                        </tr>
+                    </table>
+                    <p>Обнаружено: {{ feed.detected_objects.all.count }}</p>
+                    <ul class="list-inline">
+                        {% current_stat feed.id as stat %}
+                        {% for item in stat %}
+                            <li class="list-inline-item">{{ item.object_type }} ({{ item.method_detected }}) - {{ item.object_type__count }}</li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+{% endif %}
+
+{% endblock %}

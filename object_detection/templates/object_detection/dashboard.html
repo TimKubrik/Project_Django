@@ -1,0 +1,102 @@
+{% extends "object_detection/base.html" %}
+
+{% block content %}
+<div class="container">
+    <h2 class="my-4">Dashboard</h2>
+    <a href="{% url 'object_detection:add_image_feed' %}" class="btn btn-primary mb-3">Add Image</a>
+
+    <div class="row">
+        {% for feed in image_feeds %}
+        <div class="col-md-6">
+            <div class="card mb-3">
+                <div class="card-body">
+                    <div class="form-group">
+                        <label for="model_type_{{ feed.id }}">Select Model</label>
+                        <select name="model_type" id="model_type_{{ feed.id }}" class="form-control">
+                            <option value="detr">DETR Model</option>
+                            <option value="ssd">MobileNet SSD Model</option>
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn-secondary process-button" data-feed-id="{{ feed.id }}">Process Image</button>
+                    <div id="loading-{{ feed.id }}" style="display: none;">Processing...</div>
+                    <a href="{{ feed.image.url }}" target="_blank">
+                        <img src="{{ feed.image.url }}" alt="Original Image" class="img-thumbnail mt-3">
+                    </a>
+                    <div id="processed-image-container-{{ feed.id }}">
+                        {% if feed.processed_image %}
+                        <a href="{{ feed.processed_image.url }}" target="_blank">
+                            <img src="{{ feed.processed_image.url }}" alt="Processed Image" class="img-thumbnail mt-3">
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div class="mt-3">
+                        <h6>Detected Objects:</h6>
+                        <ul class="list-group" id="detected-objects-{{ feed.id }}">
+                            {% for obj in feed.detected_objects.all %}
+                            <li class="list-group-item">{{ obj.object_type }} - {{ obj.confidence|floatformat:2 }}%</li>
+                            {% endfor %}
+                        </ul>
+                    </div>
+                    <div class="mt-3" id="graph-container-{{ feed.id }}">
+                        {% if feed.graph %}
+                        <img src="data:image/png;base64,{{ feed.graph }}" alt="Graph" class="img-fluid">
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <form action="{% url 'object_detection:delete_image' feed.id %}" method="post" class="d-inline">
+                        {% csrf_token %}
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.process-button').forEach(function(button) {
+        button.addEventListener('click', function(event) {
+            const feedId = button.getAttribute('data-feed-id');
+            const modelSelect = document.getElementById('model_type_' + feedId);
+            const model = modelSelect.value;
+            const processedImageContainer = document.getElementById('processed-image-container-' + feedId);
+            const detectedObjectsContainer = document.getElementById('detected-objects-' + feedId);
+            const graphContainer = document.getElementById('graph-container-' + feedId);
+            const loadingIndicator = document.getElementById('loading-' + feedId);
+
+            loadingIndicator.style.display = 'block';
+
+            fetch(`/process_image/${feedId}/`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': document.querySelector('input[name="csrfmiddlewaretoken"]').value
+                },
+                body: JSON.stringify({ model: model })
+            })
+            .then(response => response.json())
+            .then(data => {
+                loadingIndicator.style.display = 'none';
+                if (data.processed_image_url) {
+                    processedImageContainer.innerHTML = `<a href="${data.processed_image_url}" target="_blank"><img src="${data.processed_image_url}" alt="Processed Image" class="img-thumbnail mt-3"></a>`;
+                }
+                if (data.detected_objects) {
+                    detectedObjectsContainer.innerHTML = data.detected_objects.map(obj => `<li class="list-group-item">${obj.object_type} - ${obj.confidence}%</li>`).join('');
+                }
+                if (data.graph) {
+                    graphContainer.innerHTML = `<img src="data:image/png;base64,${data.graph}" alt="Graph" class="img-fluid">`;
+                }
+            })
+            .catch(error => {
+                loadingIndicator.style.display = 'none';
+                console.error('Error:', error);
+                alert('An error occurred while processing the image. Please try again later.');
+            });
+        });
+    });
+});
+</script>
